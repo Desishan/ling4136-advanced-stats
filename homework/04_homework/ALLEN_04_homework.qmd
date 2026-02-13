@@ -88,8 +88,21 @@ Build that model with the appropriate random effect structure, taking into accou
 #| label: glmer_incomplete
 
 # YOUR CODE HERE
-
+glmdl1 <- glmer(chosen_voicing ~ correct_voicing +
+                  # `correct_voicing` varies within a given listener, item pair,
+                  # and voice, so all of these should have random slopes
+                (1 + correct_voicing | listener) +
+                (1 + correct_voicing | item_pair) +
+                (1 + correct_voicing | voice),
+               data = incomplete,
+               family = 'binomial')
 ```
+
+I tried including `REML = FALSE` since I'm doing an anova in the next section, but got the following error:
+
+`Error in glmer(chosen_voicing ~ correct_voicing + (1 + correct_voicing |  :    unused argument (REML = FALSE)`
+
+So I took it out. Not sure what that does.
 
 ### (B) Interpret the model output
 
@@ -99,8 +112,41 @@ Interpret the model coefficients and calculate p-values for the relevant predict
 #| label: interpretation
 
 # YOUR CODE HERE
+# Double-checking which level is above on the y axis. Looks like it's `voiceless`.
+levels(incomplete$chosen_voicing)
 
+# Viewing the model coefficients
+summary(glmdl1)
+
+# Transforming estimated values into the probability space
+plogis(c(-0.02, (-0.02 + 0.52)))
+
+# Creating a null model
+glmdl_reduced <- glmer(chosen_voicing ~ 1 +
+                  # `correct_voicing` varies within a given listener, item pair, and voice, so all of these should have random slopes
+                (1 + correct_voicing | listener) +
+                (1 + correct_voicing | item_pair) +
+                (1 + correct_voicing | voice),
+               data = incomplete,
+               family = 'binomial')
+
+# Comparing models
+anova(glmdl_reduced, glmdl1)
 ```
+
+Naming a dataset 'incomplete' is very confusing, by the way.
+
+**Coefficients:**
+
+Fixed effect: The intercept of -0.02 predicts the log odds of participants responding that the sound is voiceless when the stimulus is voiced. It corresponds with a probability of 0.50, a coin flip. The logodds slope is 0.52, the indicating that the probability of a correct response is higher when the stimulus is voiceless. The logodds with a voiceless stimulus are 0.50, or a raw probability or 0.62, a little above a coin flip.
+
+Random effects: Among the random intercepts, speaker voice absorbs the most variation at 0.82, then item pair at 0.62, then listener at a surprisingly small 0.04. Among the random slopes, the effect of correct voicing on chosen voicing absorbs the most variation along item pair variation at 0.24, then speaker voice at 0.20, then listener at again a very small 0.03.
+
+**Model comparison:**
+
+The fixed effect of correct voicing is associated with a p-value of 0.004. This effect is significant at an alpha level of 0.05. Thus, assuming that the correct voicing effect is zero, the same or more extreme data are sufficiently improbable to reject the null hypothesis (χ2(1) = 8.18, p = 0.004).
+
+Note: should I be rounding to the hundredth place in this case? It seems dishonest to say p = 0.00, but the rounding I'm doing seems inconsistent.
 
 ### (C) Plot predictions
 
@@ -112,6 +158,23 @@ Estimating variance components for linear mixed effects models is mathematically
 #| label: plot_prediction_in
 
 # YOUR CODE HERE
+predictions <- as.data.frame(predict_response(model = glmdl1))
+
+# It looks like predict_response has converted the log odds to probability,
+# which is convenient.
+ggplot(data = predictions,
+       aes(x = correct_voicing.x,
+           y = correct_voicing.predicted)) +
+  geom_errorbar(aes(ymin = correct_voicing.conf.low,
+                  ymax = correct_voicing.conf.high),
+              colour = 'red') +
+  geom_point(size = 5) +
+  labs(title = '\nPredicted proportion phonemes percieved as voiceless vs.\n
+       their intended quality.\n
+       Error bars represent a 95% confidence interval.\n',
+         x = '\nintended voicing',
+         y = 'proportion pervceived as voiceless (predicted)\n') +
+  theme_minimal()
 
 ```
 
