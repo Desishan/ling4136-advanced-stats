@@ -185,11 +185,71 @@ Compare the descriptive averages for the critical relationship for your grouping
 ```{r}
 #| label: plot_descriptive_in
 
-# YOUR CODE HERE
+# Computing averages for each listener in a new dataframe
+averages_listener <- incomplete |>
+  group_by(listener, correct_voicing) |>
+  summarise(prop_perceived_voiceless = sum(chosen_voicing == 'voiceless')/n())
 
+# Plotting
+consistency_listener <- ggplot(data = averages_listener,
+                      aes(x = correct_voicing,
+                          y = prop_perceived_voiceless,
+                          group = listener,
+                          colour = listener)) +
+  geom_point() +
+  geom_line(alpha = 0.5) +
+  labs(title = 'Variation in the relationship between correct and perceived voicing\nby listener\n',
+       x = '\nproportion perceived as voiceless',
+       y = 'intended voicing\n') +
+  theme_minimal()
+
+# Same again, for item pair
+averages_item <- incomplete |>
+  group_by(item_pair, correct_voicing) |>
+  summarise(prop_perceived_voiceless = sum(chosen_voicing == 'voiceless')/n())
+
+consistency_item <- ggplot(data = averages_item,
+                      aes(x = correct_voicing,
+                          y = prop_perceived_voiceless,
+                          group = item_pair,
+                          colour = item_pair)) +
+  geom_point() +
+  geom_line(alpha = 0.5) +
+  labs(title = 'Variation in the relationship between correct and perceived voicing\nby item pair\n',
+       x = '\nproportion perceived as voiceless',
+       y = 'intended voicing\n',
+       colour = 'item pair') +
+  theme_minimal()
+
+# Same again, for speaker voice
+averages_speaker <- incomplete |>
+  group_by(voice, correct_voicing) |>
+  summarise(prop_perceived_voiceless = sum(chosen_voicing == 'voiceless')/n())
+
+consistency_speaker <- ggplot(data = averages_speaker,
+                      aes(x = correct_voicing,
+                          y = prop_perceived_voiceless,
+                          group = voice,
+                          colour = voice)) +
+  geom_point() +
+  geom_line(alpha = 0.5) +
+  labs(title = 'Variation in the relationship between correct and perceived voicing\nby speaker voice\n\n',
+       x = '\nproportion perceived as voiceless',
+       y = 'intended voicing\n',
+       colour = 'speaker voice') +
+  theme_minimal()
+
+# Display variation plots
+consistency_listener
+consistency_item
+consistency_speaker
 ```
 
-We can see massive variation, particularly for different item pairs and different speaker voices.
+This reflects pretty intuitively the pattern given in the model's random effects: listeners are the most consistent, though there is some intercept and slope variation; there is even one listener whose slop is nearly zero.
+
+By item pair, there is a lot more variation, and while slopes generally trend positive, some are even negative.
+
+By speaker, both slopes and intercepts vary massively, though it looks like only three of speaker voices actually show a negative slope. In fact, those three speakers' slopes appear so close to each other that I wonder if they possess a particular common feature, say of dialect or voice quality. I also wonder if there is a ceiling effect present, given the positive slopes towards the higher voiceless proportions seem typically flatter than the lower-intercept ones.
 
 ### (E) Use Github to upload your analysis
 
