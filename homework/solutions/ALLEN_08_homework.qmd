@@ -49,7 +49,7 @@ We will be re-analyzing the data from @winter2013making.
 #| label: preprocessing_sim
 
 # Load our datasets
-sim <- read_csv("../data/linguistic_similarity.csv") |> 
+sim <- read_csv("../../data/linguistic_similarity.csv") |> # Changed the filepath bc this is now in hw solutions folder
   mutate(Sem = as.factor(Sem),
          Phon = as.factor(Phon))
 sim
@@ -65,11 +65,20 @@ Specify the model formula and appropriate weakly informative priors for all rele
 ```{r}
 #| label: model_formula_sim
 
-my_priors <- #YOUR PRIORS HERE
+model_formula <- Distance ~ Sem * Phon
 
+get_prior(model_formula, sim)
+
+# Covers a good proportion of 297mm, the length of an A4 paper
+my_priors <- c(prior(normal(100, 40), class = 'intercept'),
+               prior(normal(0, 40), class = 'b'))
+# No random effects based on the data we have, yayyy
+
+contrasts(sim$Sem) <- c(-0.5, 0.5)
+contrasts(sim$Phon) <- c(-0.5, 0.5)
 ```
 
-## (b) Run the appropriate model for the research question
+## (b) Run the appropiate model for the research question
 
 ```{r}
 #| label: model_sim

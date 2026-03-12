@@ -1,0 +1,302 @@
+---
+title: "session07 - homework"
+format: html
+editor: visual
+date: 2025-07-17
+author: Timo Roettger
+execute:
+  error: false
+  warning: false
+  message: false
+  cache: false
+---
+
+# Preamble: Loading packages and configuration
+
+```{r}
+#| label: data_and_libraries
+#| echo: false
+
+# just run this code chunk
+# function to ignoring the setting of the relative path below when knitting
+run_if_not_knitting <- function(expr) {
+  if (!isTRUE(getOption("knitr.in.progress"))) {
+    eval(expr)
+  }
+}
+
+# nifty code using the pacman package
+# it checks if the packages specified below are installed, if not, they will be installed, if yes, they will be loaded
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(rstudioapi, tidyverse, lme4, brms, bayestestR, tidybayes, gridExtra)
+
+# set the current working directory to the one where this file is
+run_if_not_knitting(current_working_dir <- dirname(rstudioapi::getActiveDocumentContext()$path))
+run_if_not_knitting(setwd(current_working_dir))
+
+# options to increase efficiency of brms models (optional)
+options(brms.backend = "cmdstanr")
+options(mc.cores = parallel::detectCores())
+
+```
+
+### Introduction to the problem
+
+We will be working with Quantese again, see `01_exercise.qmd` and the other data resources for a refresher.
+
+```{r}
+#| label: load-quantese
+
+quantese <- read_csv("../../data/quantese_naming_sim.csv") 
+# add log-transformed reaction time
+quantese <- quantese |> 
+  mutate(log_rt = log(rt))
+
+quantese
+
+```
+
+In an earlier homework, we have assessed the following hypothesis:
+
+*"We hypothesize that log-transformed reaction times are affected by lexical frequency"*
+
+We tried to run the following model that included an appropriate random effect structure but it did not converge with `lme4`:
+
+```{r}
+#| label: lmer_quantese
+
+# formulate the corresponding LMER
+quant_lmer <- lmer(log_rt ~ log_frequency +
+                     (1 + log_frequency | PartID) +
+                     (1 | ItemID), 
+                    data = quantese)
+# your receive a warning: "boundary (singular) fit: see help('isSingular')"
+
+```
+
+*So you consider singular fit to be non-conversion? Jo told us that these were two different things.*
+
+Now we will re-run this model within the Bayesian framework:
+
+### (A) Specify priors
+
+Check which priors this model needs and specify weakly informative priors.
+
+Remember that weakly informative priors are priors that do not bias the posteriors in any direction, but reasonably constrain the parameter space, i.e. only reasonable values are assumed.
+
+For priors of class `Intercept` and `b`, constrain the parameter space with a wide normal distribution.
+
+```{r}
+#| label: get_prior
+
+# YOUR CODE HERE
+model_formula <- bf(log_rt ~ log_frequency)
+get_prior(model_formula, quantese)
+# So I need intercept and b, and possibly I should have sigma too but idk.
+
+# Plot the log_rt values in the data bc I have no idea what's a reasonable range
+ggplot(data = quantese,
+       aes(x = log_rt)) +
+  geom_density()
+# To be as vague as possible, try and cover much more than this range, starting in
+# the middle (not the peak) for possible intercepts
+
+# specify weakly informative priors
+my_priors <- c(prior(normal(6.75, 2),
+                     class = 'Intercept'),
+               # Just picked half-ish the range I see in the data for spread,
+               # bc that's real broad
+               prior(normal(0, 1),
+                     class = 'b'))
+
+```
+
+We can also now get used to specifying priors for classes `sd` and `cor`. Priors of class `sd` are priors for the variance associated with our random effects. You see here 2 `sd` priors for group `ItemID`. The first one is just a generic prior for all `ItemID` coefficients and the second one with the `coef = Intercept` stands for the random intercept variation between items. Similarly for group `PartID`, we have 3 priors. The first one is again just a generic prior for all `PartID` coefficients. The second one with the `coef = Intercept` stands for the random intercept variation between participants. And the last one with the `coef = log_frequency` stands for the random slope variation between participants for the predictor `log_frequency`. How do we specify these priors. We have usually no idea what to expect from these parameters, so we here also specify very diffuse priors centered on zero. We pick a cauchy distribution (remember? super squashed normal distributions) because they have thick tails. Let's make them super diffuse and pick a `sd = 3` for both items and participants.
+
+```{r}
+#| label: add_sd_priors
+
+# add weakly informative priors for sd
+my_priors <- c(my_priors, 
+               prior(cauchy(0, 3), class = 'sd', group = 'ItemID'),
+               prior(cauchy(0, 3), class = 'sd', group = 'PartID'))
+
+```
+
+And finally, if your model as random slopes, they have by default a correlation parameter for intercept and slope. We are not getting into the math here and will follow advice from smart people. We use Lewandowski-Kurowicka-Joe priors (shape = 1): `lkj(1)`. Specifying this prior for random slope models actually helps a lot with the fitting procedure.
+
+```{r}
+#| label: add_cor_priors
+
+# add weakly informative priors for cor
+my_priors <- c(my_priors, 
+               prior(lkj(1), class = 'cor'))
+
+```
+
+### (B) Run model
+
+Now run the model with 4 chains, 1000 warm-up and 1000 post-warm-up samples per chain. Check that chains are reasonably mixed and that sampling yielded a sufficient effective sample size. If not address the issues appropriately (check slides again).
+
+```{r}
+#| label: model_quant
+
+# if the model takes way too long to sample (more than 5-10 mins), use the following subset
+# quantese_sub <- quantese |> 
+#   filter(PartID %in% c("01","02","03","04",
+#                        "05","06","07","08"))
+
+# YOUR CODE HERE
+quant_brm <- brm(log_rt ~ log_frequency +
+                   (1 + log_frequency | ItemID) +
+                   (1 + log_frequency | PartID),
+                 # Should it still be gaussian?
+                 family = gaussian(),
+                 prior = my_priors,
+                 data = quantese,
+                 chains = 4,
+                 iter = 2000, warmup = 1000)
+# Should I be adding the rest of the specifications in the slides?
+
+mcmc_plot(quant_brm, type = 'trace')
+mcmc_dens_overlay(quant_brm, pars = 'b_Intercept')
+
+```
+
+Wow, so many caterpillars! They're too small to see super clearly, but I think they mostly look fine. The ones for `itemID_Intercept` and `ItemID_log_frequency` look a little less mixed.
+
+Ohhhh but the density overlay does not look so good, even just for `b_Intercept`. I'll try increasing the warmup period.
+
+```{r}
+#| label: model_adjusted
+quant_brm2 <- brm(log_rt ~ log_frequency +
+                   (1 + log_frequency | ItemID) +
+                   (1 + log_frequency | PartID),
+                 family = gaussian(),
+                 prior = my_priors,
+                 data = quantese,
+                 # MCMC specs
+                 chains = 4,
+                 iter = 6000, warmup = 4000)
+# The warning for divergences is smaller this time (10%), but that's still > 0.
+
+mcmc_plot(quant_brm2, type = 'trace')
+mcmc_dens_overlay(quant_brm2, pars = 'b_Intercept')
+# Plots look significantly better, but still I should probably try increasing adapt_delta.
+# And I'll add the rest of the mcmc specs from the slides.
+
+quant_brm3 <- brm(log_rt ~ log_frequency +
+                   (1 + log_frequency | ItemID) +
+                   (1 + log_frequency | PartID),
+                 family = gaussian(),
+                 prior = my_priors,
+                 data = quantese,
+                 # MCMC specs
+                 chains = 4,
+                 iter = 6000, warmup = 4000,
+                 thin = 1, seed = 666,
+                 control = list(adapt_delta = 0.99))
+# This model took more than 10 minutes trying to sample! Had to abort.
+
+# Doing what was advised above, then running that version.
+quantese_sub <- quantese |> 
+   filter(PartID %in% c("01","02","03","04",
+                        "05","06","07","08"))
+
+quant_brm4 <- brm(log_rt ~ log_frequency +
+                   (1 + log_frequency | ItemID) +
+                   (1 + log_frequency | PartID),
+                 family = gaussian(),
+                 file = '../../models/07_homework.RDS',
+                 prior = my_priors,
+                 data = quantese_sub,
+                 # MCMC specs
+                 chains = 4,
+                 iter = 6000, warmup = 4000,
+                 thin = 1, seed = 666,
+                 control = list(adapt_delta = 0.99))
+
+# Nice and quick this time!
+
+mcmc_plot(quant_brm4, type = 'trace')
+mcmc_dens_overlay(quant_brm4, pars = 'b_Intercept')
+
+# Finally, the chains look excellent and the model does not complain of divergences, hurrah
+# Checking sample size
+
+quant_brm4
+
+```
+
+Bulk_ESS could be larger for the ItemID values (Intercept sd = 858, slope sd = 441), and Rhat = 1.01 for the latter. So it's borderline, but the rules of thumb are satisfied.
+
+### (C) Plot posterior predictions
+
+Find a way to extract posterior samples from the model for the `Intercept` and the `log_frequency` coefficient and plot the predicted posterior mean linear model alongside its 95% Credible Intervals. There are many different ways to get there.
+
+```{r}
+#| label: plot_predictions
+
+# YOUR CODE HERE
+get_variables(quant_brm4)
+
+# I don't understand the difference between the variables `Intercept` and `b_Intercept`.
+
+post_samples_quant <- quant_brm4 |>
+  spread_draws(Intercept, b_log_frequency)
+
+post_means_quant <- post_samples_quant  |>
+  summarise(intercept_mean = mean(Intercept),
+            slope_mean = mean(b_log_frequency))
+
+post_intervals_quant <- post_samples_quant |>
+  median_qi(Intercept, b_log_frequency)
+
+# Plotting predicted posterior mean linear model
+# Okay, I'm so confused trying to plot it as an actual line with predicted means
+# And uncertainty for the intercept AND slope.
+
+# For now I'll just plot them separately. Added patchwork library for this.
+intercept_plot <- ggplot() +
+  geom_point(data = post_means_quant,
+                         aes(x = 1,
+                             y = intercept_mean)) +
+  geom_errorbar(data = post_intervals_quant,
+                 aes(x = 1,
+                     ymin = Intercept.lower,
+                     ymax = Intercept.upper)) +
+  scale_x_continuous(labels = NULL) + # The row number is meaningless
+  scale_y_continuous(limits = c(5, 8)) + # This covers the range of the sample means
+  labs(x = '\nintercept',
+       y = 'predicted mean intercept for log reaction time\n') +
+  theme_minimal()
+
+slope_plot <- ggplot() +
+  geom_point(data = post_means_quant,
+                         aes(x = 1,
+                             y = slope_mean)) +
+  geom_errorbar(data = post_intervals_quant,
+                 aes(x = 1,
+                     ymin = b_log_frequency.lower,
+                     ymax = b_log_frequency.upper)) +
+  scale_x_continuous(labels = NULL) +
+  scale_y_continuous(limits = c(-0.15, 0)) + # This covers the range of the sample slopes
+  labs(x = '\nslope',
+       y = 'predcted mean slope for log reaction time\n') +
+  theme_minimal()
+
+grid.arrange(intercept_plot, slope_plot,
+             ncol = 2,
+             top = 'Predicted posterior mean values for intercept and mean\nin quantese data subset. Error bars = 95% CI\n',
+             bottom = 'parameter')
+```
+
+Sorry, I know this is not really the linear model plot you asked for and is also kind of horrible code, but it's the best I had time to achieve. I look forward to seeing the solutions.
+
+# Useful links
+
+<https://cloud.r-project.org/web/packages/tidybayes/vignettes/tidy-brms.html#point-summaries-and-intervals>
+
+<https://r-charts.com/ggplot2/combining-plots/>
+
+<https://stackoverflow.com/questions/35090883/remove-all-of-x-axis-labels-in-ggplot#comment117163007_35090981>
