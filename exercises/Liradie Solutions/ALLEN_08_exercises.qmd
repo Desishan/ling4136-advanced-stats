@@ -315,8 +315,12 @@ Now interpret the model relative to the research question and describe uncertain
 #| label: interpret_sim
 
 # YOUR INTERPRETATION HERE
-
+xmdl_sim
 ```
+
+For cities are described as being semantically different, the posterior distribution has a mean difference of 82.53mm, with a 95% highest probability density interval between 76.90 and 88.14.
+
+If they are semantically similar, posterior distribution has a mean distance of 10.13mm closer, or 72.40mm, with a 95% highest probability density interval of between 18.25 and 1.88mm closer.
 
 ## (c) Visualize posterior
 
@@ -326,7 +330,14 @@ Visualize the posterior distribution of the relevant coefficient and draw in a r
 #| label: plot_post_sim
 
 #YOUR PLOT HERE
-
+xmdl_sim |> 
+  # first extract the samples for the differences only
+  spread_draws(b_SemSimilar) |> 
+  # plot
+  ggplot(aes(x = b_SemSimilar)) +
+    geom_density(fill = "purple") +
+  geom_vline(xintercept = 0) +
+  theme_minimal()
 ```
 
 ## (d) OPTIONAL: Visualize posteriors of individual levels
@@ -337,7 +348,26 @@ Now visualize the posterior estimates of the semantically similar vs. the semant
 #| label: plot_post_sim_conditions
 
 #YOUR PLOT HERE
+draws <- xmdl_sim |> 
+  # first extract the samples for the differences only
+  spread_draws(Intercept, b_SemSimilar)
 
+data_for_plot <- data.frame(Different = draws$Intercept,
+                            Similar = draws$Intercept + draws$b_SemSimilar)
+
+# Plot similar
+data_for_plot |>
+  ggplot(aes(x = Similar)) +
+  geom_density(fill = "purple") +
+  labs(title = 'Posterior estimates for similar condition') +
+  theme_minimal()
+  
+# Plot different
+data_for_plot |>
+  ggplot(aes(x = Different)) +
+  geom_density(fill = "orange") +
+  labs(title = 'Posterior estimates for different condition') +
+  theme_minimal()
 ```
 
 ## (e) Describe posteriors relative to reference point
@@ -347,9 +377,9 @@ Now describe the relationship between the posterior distribution extracted in (c
 ```{r}
 #| label: describe_ref_sim
 
-# YOUR DESCRIPTION HERE
-
 ```
+
+Most of the distribution is below zero, but it does have a tail passing zero, suggesting the it is not implausible that there is no or a positive difference in distance drawn when cities are semantically similar vs. different.
 
 ## (f) Calculate the posterior probability of direction
 
@@ -357,8 +387,10 @@ Now describe the relationship between the posterior distribution extracted in (c
 #| label: pd_sim
 
 # YOUR CODE HERE
-
+p_direction(draws)
 ```
+
+The probability of direction is 99.08%, or the probability of posteriors below zero (i.e., cities semantically similar cities closer than different ones) is 0.9908.
 
 ## (g) Calculate the Bayes Factor
 
@@ -369,7 +401,9 @@ Compute the Bayes factors against the point-null value, bases on prior and poste
 #| cache: TRUE
 
 # YOUR CODE HERE
-
+bayesfactor_parameters(draws, # posterior distributions
+                       my_priors, # nope, I need to extract a distribution from this
+                       null = 0)
 ```
 
 ## (h) Write up your results
