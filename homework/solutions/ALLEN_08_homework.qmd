@@ -65,17 +65,23 @@ Specify the model formula and appropriate weakly informative priors for all rele
 ```{r}
 #| label: model_formula_sim
 
-model_formula <- Distance ~ Sem * Phon
-
-get_prior(model_formula, sim)
-
-# Covers a good proportion of 297mm, the length of an A4 paper
-my_priors <- c(prior(normal(100, 40), class = 'intercept'),
-               prior(normal(0, 40), class = 'b'))
-# No random effects based on the data we have, yayyy
-
 contrasts(sim$Sem) <- c(-0.5, 0.5)
 contrasts(sim$Phon) <- c(-0.5, 0.5)
+
+model_formula <- Distance ~ Sem * Phon
+
+get_prior(model_formula, data = sim)
+# For some reason, the coefficients for `sem` are Phon1, Sem1 etc.,
+# instead of PhonSimilar, SemSimilar, etc. Why can't the machine tell that these are
+# categorical values? Maybe because they're factorised this time?
+
+my_priors <- c(prior(normal(100, 40), class = 'Intercept'), # Covers a good proportion of 297mm, the length of an A4 paper
+               prior(normal(0, 40), class = 'b', coef = 'Phon1'),
+               prior(normal(0, 40), class = 'b', coef = 'Sem1'),
+               prior(normal(0, 40), class = 'b', coef = 'Sem1:Phon1')) # This spread for interaction is maybe a little excessive, but I don't really know how how tight it might be
+# No random effects based on the data we have, yayyy
+
+
 ```
 
 ## (b) Run the appropiate model for the research question
@@ -85,7 +91,20 @@ contrasts(sim$Phon) <- c(-0.5, 0.5)
 
 #YOUR MODEL HERE
 
+xmdl_sim <- brm(model_formula,
+                data = sim,
+                family = gaussian(),
+                prior = my_priors,
+                file = '../../models/08_homework.RDS',
+                chains = 4,
+                cores = 4, 
+                iter = 2000,
+                warmup = 1000,
+                thin = 1,
+                seed = 42)
 ```
+
+Yayyy that was nice and quick!
 
 ## (c) Posterior predicive check
 

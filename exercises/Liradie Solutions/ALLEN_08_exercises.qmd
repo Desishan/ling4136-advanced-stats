@@ -303,6 +303,7 @@ my_priors <- c(prior(normal(107, 50), class = 'Intercept'),
 xmdl_sim <- brm(Distance ~ Sem,
             family = gaussian(),
             prior = my_priors,
+            file = '../../models/08_exercise.RDS',
             data = sim,
             seed = 42)
 ```
@@ -401,14 +402,36 @@ Compute the Bayes factors against the point-null value, bases on prior and poste
 #| cache: TRUE
 
 # YOUR CODE HERE
-bayesfactor_parameters(draws, # posterior distributions
-                       my_priors, # nope, I need to extract a distribution from this
+posteriors <- draws |>
+  select(b_SemSimilar)
+
+# Create a prior-only model to extract prior distribution
+xmdl_sim_priors <- brm(Distance ~ Sem,
+                  family = gaussian(),
+                  prior = my_priors,
+                  sample_prior = 'only',
+                  file = '../../models/08_exercise_priors.RDS',
+                  data = sim,
+                  seed = 42)
+
+priors <- xmdl_sim_priors |>
+  spread_draws(b_SemSimilar) |>
+  select(b_SemSimilar)
+
+
+bayesfactor_parameters(posteriors,
+                       priors,
+                       direction = 'two-sided',
                        null = 0)
 ```
 
 ## (h) Write up your results
 
-YOUR WRITE UP HERE.
+Posterior distributions of the model indicate that going from semantically different to similar city descriptions, distances drawn between them are estimated to decrease by an average of -10.13mm \[95% Credible Interval: 18.25 to 1.88mm\].
+
+99% of the posterior samples are negative, indicating that positive values are not very plausible (given the data, the model, and priors).
+
+Subsequently, we calculate the Savage-Dickey density ratio [@DickeyLientz1970-The-Weighted-Li; @WagenmakersLodewyckx2010-Bayesian-hypoth; @roettgermeaningful], i.e., we relate the evidence (the probability of the posterior distribution at point-zero) for the model based on the priors only (i.e., before seeing the data) to the evidence for the model based on both priors and likelihood (i.e., after seeing the data) [e.g., @WetzelsGrasman2010-An-encompassing]. The Savage-Dickey method lets us assess evidence for and against a null hypothesis using Bayes factor. Here, the Bayes factor indicates the degree by which the mass of the posterior distribution has shifted further away from the point null value (relative to the prior distribution). Our analysis yields a Bayes Factor of 1.43, indicating that the probability of the effect of semantic similarity being point null has not decreased substantially, suggesting only *anecdotal* evidence for the alternative hypothesis that the effect of semantic similarity is point null[@lee-wagenmakers_Bayesian_book_2014].
 
 # References
 
