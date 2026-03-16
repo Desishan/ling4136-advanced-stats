@@ -201,8 +201,41 @@ Now interpret the model relative to the research question and describe uncertain
 #| label: interpret_sim
 
 #YOUR CODE HERE
-
+xmdl_sim_sqrt
 ```
+
+### Interpret model & describe uncertainty
+
+The posterior mean of the main effect on distance drawn of semantic similarity is -0.69 square-root millimeters, with a 95% credible interval between -1.16 and -0.21. For the main effect of phonological similarity, it's 0.45 with a credible interval -0.05 to 0.93. And for their interaction, it's -0.19 with a credible interval -1.15 to 0.75. It seems like we're measuring pretty precisely if the 95% interval surrounds the mean with the largest estimated error being ±0.49 square rooted, or ±0.24 raw, millimeters. While the posterior credible interval is only compatible with negative slopes for semantic main effect, the other two effects are compatible with both positive and negative slopes.
+
+### Visualise posteriors
+
+```{r}
+#| label: visualise_posteriors
+
+sim_posteriors <- xmdl_sim_sqrt |>
+  spread_draws(b_Sem1,
+               b_Phon1,
+               `b_Sem1:Phon1`) |>
+  pivot_longer(cols = c(b_Sem1, b_Phon1, `b_Sem1:Phon1`),
+               names_to = 'Predictor',
+               values_to = 'Effect') |>
+  select('Predictor', 'Effect')
+
+# Here's looking at it as a density plot, for `b_Sem1`
+sim_posteriors |>
+  ggplot(aes(x = Effect)) +
+    stat_halfeye(alpha = 0.5,
+                 aes(fill = Predictor,
+                     colour = Predictor)) +
+   geom_vline(xintercept = 0, lty = 'dashed') +
+   labs(title = 'Posterior prediction distributions for main effects of semantic\nand phonological similarity, and their interaction,\non square-root distance drawn\n',
+        x = "\nPosterior predicted effect",
+        y = "Density\n") +
+   theme_minimal()
+```
+
+Again this visualisation is unsatisfying, but it's something.
 
 ## (g) Write up your entire analysis:
 
