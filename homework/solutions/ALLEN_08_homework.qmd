@@ -54,6 +54,15 @@ sim <- read_csv("../../data/linguistic_similarity.csv") |> # Changed the filepat
          Phon = as.factor(Phon))
 sim
 
+
+# check means
+means <- sim |>
+  group_by(Sem, Phon) |>
+  summarise(mean_dist = mean(Distance, na.rm = TRUE))
+
+# what's the mean of means?
+mean(means$mean_dist)
+
 ```
 
 We will now retrace the original article's complete analysis. In their original analysis, they were interested in whether (a) semantic similarity between cities, (b) phonological similarity between cities, and (c) their interaction affects how close/far apart participants draw the cities.
@@ -102,11 +111,15 @@ xmdl_sim <- brm(model_formula,
                 warmup = 1000,
                 thin = 1,
                 seed = 42)
+
+# Shortcut to run model faster:
+
+xmdl_sim
 ```
 
 Yayyy that was nice and quick!
 
-## (c) Posterior predicive check
+## (c) Posterior predictive check
 
 Check the overall model fit with posterior predictive checks. If the model does not fit the data well, fix the problem (check `06_homework_solutions.qmd` for inspiration).
 
@@ -114,8 +127,44 @@ Check the overall model fit with posterior predictive checks. If the model does 
 #| label: model_fit
 
 #YOUR CODE HERE
+pp_check(xmdl_sim, ndraws = 100)
 
 ```
+
+As with last time, the model is a bit more normal than the data, which has a right tail. I guess the right tail lines up with having a hard boundary at 0mm, since we know the data peaks below the halfway point (107mm) to the upper hard boundary.
+
+Guess we should try making the model predict square root of distance instead of raw.
+
+```{r}
+#| label: model_adjusted
+
+model_formula_sqrt <- sqrt(Distance) ~ Sem * Phon
+
+# same priors but square rooted and rounded up for max conservativeness
+priors_sqrt <- c(prior(normal(10, 7), class = 'Intercept'),
+               prior(normal(0, 7), class = 'b', coef = 'Phon1'),
+               prior(normal(0, 7), class = 'b', coef = 'Sem1'),
+               prior(normal(0, 7), class = 'b', coef = 'Sem1:Phon1'))
+
+# compilation error here that seems to be engine and cmdstan related. taking a break.
+xmdl_sim_sqrt <- brm(model_formula_sqrt,
+                data = sim,
+                family = gaussian(),
+                prior = priors_sqrt,
+                file = '../../models/08_homework_sqrt.RDS',
+                chains = 4,
+                cores = 4,
+                iter = 2000,
+                warmup = 1000,
+                thin = 1,
+                seed = 42)
+
+# Posterior predictive check for square root model
+pp_check(xmdl_sim_sqrt, ndraws = 100)
+
+```
+
+Given that the data doesn't show exactly a gaussian pattern, I think this model lines up with it as well as it can. Maybe once I understand different distributions more, I could try stuff like picking a distribution with a narrower peak and thicker tails for the `family` argument.
 
 ## (d) Assess sampling diagnostics
 
@@ -126,7 +175,21 @@ Check that chains are reasonably mixed and that sampling yielded a sufficient nu
 
 # YOUR CODE HERE
 
+# Assess chain mixing
+mcmc_plot(xmdl_sim_sqrt, type = 'trace')
+
+mcmc_dens_overlay(xmdl_sim_sqrt, pars = 'b_Intercept')
+mcmc_dens_overlay(xmdl_sim_sqrt, pars = 'b_Phon1')
+mcmc_dens_overlay(xmdl_sim_sqrt, pars = 'b_Sem1')
+mcmc_dens_overlay(xmdl_sim_sqrt, pars = 'b_Sem1:Phon1')
+
+# Check sample size
+xmdl_sim_sqrt
 ```
+
+Excellent caterpillars and very reasonable density patterns! Guess I won't be called out in class this time.
+
+ESS fine.
 
 ## (e) Interpret the results
 
