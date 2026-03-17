@@ -146,7 +146,6 @@ priors_sqrt <- c(prior(normal(10, 7), class = 'Intercept'),
                prior(normal(0, 7), class = 'b', coef = 'Sem1'),
                prior(normal(0, 7), class = 'b', coef = 'Sem1:Phon1'))
 
-# compilation error here that seems to be engine and cmdstan related. taking a break.
 xmdl_sim_sqrt <- brm(model_formula_sqrt,
                 data = sim,
                 family = gaussian(),
@@ -213,10 +212,12 @@ The posterior mean of the main effect on distance drawn of semantic similarity i
 ```{r}
 #| label: visualise_posteriors
 
-sim_posteriors <- xmdl_sim_sqrt |>
+spread_draws_full <- xmdl_sim_sqrt |>
   spread_draws(b_Sem1,
                b_Phon1,
-               `b_Sem1:Phon1`) |>
+               `b_Sem1:Phon1`)
+
+sim_posteriors <- spread_draws_full |>
   pivot_longer(cols = c(b_Sem1, b_Phon1, `b_Sem1:Phon1`),
                names_to = 'Predictor',
                values_to = 'Effect') |>
@@ -235,11 +236,57 @@ sim_posteriors |>
    theme_minimal()
 ```
 
-Again this visualisation is unsatisfying, but it's something.
+Again this visualisation is unsatisfying given the pale & overlapping CIs, but it's something. If I had time I would plot the predictors on different horizontal planes + improve the colours.
+
+### Posterior probabilities of direction
+
+```{r}
+#| label: posterior_pd
+
+posteriors_horizontal <- spread_draws_full |>
+  select(b_Sem1, b_Phon1, `b_Sem1:Phon1`)
+
+posteriors_horizontal |>
+  p_direction()
+
+```
+
+### Bayes factors
+
+```{r}
+#| bayes_factors
+
+xmdl_sim_sqrt_priors <- brm(model_formula_sqrt,
+                            data = sim,
+                            family = gaussian(),
+                            prior = priors_sqrt,
+                            sample_prior = 'only',
+                            file = '../../models/08_homework_sqrt_priors.RDS',
+                            chains = 4,
+                            cores = 4,
+                            iter = 2000,
+                            warmup = 1000,
+                            thin = 1,
+                            seed = 42)
+
+priors <- xmdl_sim_sqrt_priors |>
+  spread_draws(b_Sem1,
+               b_Phon1,
+               `b_Sem1:Phon1`) |>
+  select(b_Sem1,
+         b_Phon1,
+         `b_Sem1:Phon1`)
+
+bayesfactor_parameters(posteriors_horizontal, priors, direction = "two-sided", null = 0)
+```
 
 ## (g) Write up your entire analysis:
 
-YOUR WRITE UP HERE
+The posterior mean of the main effect on distance drawn of semantic similarity is -0.69 square-root millimeters, with a 95% credible interval between -1.16 and -0.21. For the main effect of phonological similarity, it's 0.45 with a credible interval -0.05 to 0.93. And for their interaction, it's -0.19 with a credible interval -1.15 to 0.75. It seems like we're measuring pretty precisely if the 95% interval surrounds the mean with the largest estimated error being ±0.49 square rooted, or ±0.24 raw, millimeters. While the posterior credible interval is only compatible with negative slopes for semantic main effect, there are some samples over zero. The phonological main effect and interaction effect's 95% intervals are compatible with both positive and negative slopes.
+
+Given this model, the data, and our priors, the posterior probability of semantic similarity decreasing square-root distance is \~100%; i.e. p(b\<0) = 1.0. The posterior probability of phonological similarity increasing square-root distance is \~97%; p(b\>0) = 0.97. And the posterior probability of the combination of semantic and phonological similarity decreasing square-root distance is \~65%; p(b\<0) = 0.65.
+
+Subsequently, we calculate the Savage-Dickey density ratio [@DickeyLientz1970-The-Weighted-Li; @WagenmakersLodewyckx2010-Bayesian-hypoth; @roettgermeaningful], computing the Bayes factors against the point-null value. Our analysis yields respective Bayes factors of 2.37, 0.180, and 0.078, indicating that the probability of any of these effects being point null is actually relatively high. This suggests all evidence against the null hypothesis of these effects on square-root distance being point null [@lee-wagenmakers_Bayesian_book_2014] is anecdotal, and in some cases there is moderate evidence in favor of the null hypothesis.
 
 ## OPTIONAL (h) compare your interpretation to the original findings
 
