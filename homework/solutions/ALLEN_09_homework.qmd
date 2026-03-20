@@ -99,6 +99,8 @@ Relationship predicted (specific hypothesis): **The evolution stage of a pokemon
 
 ## B: Run your preregistered analysis
 
+*For transparency: I did this assignment together with Anna Rosa.*
+
 Run the preregistered analysis made in (A) above and interpret your results relative to the hypothesis.
 
 ```{r}
@@ -145,9 +147,9 @@ i_model <- lm(i ~ Evolution,
 summary(i_model)
 ```
 
-The model predicts a mean number of 'i's of 0.67 for evolution 1, and changing to evolution to leads to \<-0.01 fewer 'i's. The p-value for the predicted effect is 0.981 (t = -0.024). This suggests that evolution stage is not reflected in aspects of the pokemon's Japanese name.
+The model predicts a mean number of 'i's of 0.67 for evolution 1, and changing to evolution 2 leads to \<-0.01 fewer 'i's. The p-value for the predicted effect is 0.981 (t = -0.024). This suggests that evolution stage is not reflected in aspects of the pokemon's Japanese name. We chose to measure total number of 'i's because it seemed like the simplest possible way to compare a potential kiki-bouba effect with the data. However, this seemed a bit too loose a focus.
 
-Next, we looked at high vowels in general (i, e, and u), to investigate more specifically. I consider this my main alternative hypothesis 1.
+So next, we looked at high vowels in general (i, e, and u), to investigate more specifically. I consider this my main alternative hypothesis 1.
 
 ```{r}
 #| label: alt_model2
@@ -166,13 +168,15 @@ summary(kiki_model)
 
 This model predicts that the mean proportion high vowels in an Evolution 1 pokemon's name is 0.51. This decreases by 0.01 to 0.5 for an Evolution 2 pokemon. This effect has a p-value of 0.2734 (t = -1.096), indicating a 27% likelihood of finding the same or more extreme data if the effect of evolution of high vowel proportion is null. This suggests that evolution stage is not reflected in aspects of the pokemon's Japanese name.
 
+We chose to separate out i/e/u as high vowels based on our limited knowledge of Japanese phonology and the bouba-kiki effect being associated with high vs. low vowels. We chose to measure the proportion of high vowels out of all vowels to control for different vowel counts in different names, and separate vowel height from potential covariance with the length correlation we noticed in part (A).
+
 Alternative hypothesis 2: instead of high vowels, we look at proportion of long vowels (transcribed as 'R'), out of the name length as a response variable
 
 ```{r}
 #| label: alt_model3
 
 pokemon <- pokemon |>
-  filter(Length != 1) |>
+  filter(Length != 1) |> # Filter out the one wrong transcription which is just `R`
   mutate(proplongvowels = R / (Length - R)) # Each R goes along with a vowel
 
 long_vowel_model <- lm(proplongvowels ~ Evolution,
@@ -186,6 +190,18 @@ This model predicts a mean proportion long vowels of 0.06 for evolution 1 pokemo
 ## D: Researcher degrees of freedom
 
 Note down all dimensions of researcher degrees of freedom that make the mapping of the hypothesis onto your data analysis vague. How many possible combinations can you think of?
+
+-   How to interpret 'aspects of its Japanese name' is extremely vague; our variations were all about different potential aspects which could be predictors
+
+-   Predicting a directional correlation vs. a correlation in any direction
+
+-   Measuring 'length' by phoneme or syllable
+
+-   Counting diphthongs and long vowels as one or two phonemes
+
+-   If focusing on phonemes, which ones: consonants, vowels, individually or in categories, which categories
+
+-   Modelling official vs. elicited names, or both separately vs. together
 
 # References
 
