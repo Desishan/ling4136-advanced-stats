@@ -1,0 +1,195 @@
+---
+title: "session09 - exercises"
+format: html
+editor: visual
+date: 2025-07-17
+author: Timo Roettger
+execute:
+  error: false
+  warning: false
+  message: false
+  cache: false
+bibliography: ../resources/bibliography.bib
+---
+
+# Preamble: Loading packages and configuration
+
+```{r}
+#| label: data_and_libraries
+#| echo: false
+
+# just run this code chunk
+# function to ignoring the setting of the relative path below when knitting
+run_if_not_knitting <- function(expr) {
+  if (!isTRUE(getOption("knitr.in.progress"))) {
+    eval(expr)
+  }
+}
+
+# nifty code using the pacman package
+# it checks if the packages specified below are installed, if not, they will be installed, if yes, they will be loaded
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(rstudioapi, tidyverse, lme4)
+
+# set the current working directory to the one where this file is
+run_if_not_knitting(current_working_dir <- dirname(rstudioapi::getActiveDocumentContext()$path))
+run_if_not_knitting(setwd(current_working_dir))
+
+```
+
+# Introduction
+
+The main **learning goals** of this week's practical parts are:
+
+-   getting an intuition about the gap between verbal hypotheses and formal hypotheses
+
+# The data
+
+In this dataset, we will be analyzing data from @kilpatrick2023random:
+
+In a nutshell, the authors were interested in whether there is a relationship between the form of a word and its meaning by looking at Japanese Pokemon names.
+
+Let's have a look at the data:
+
+```{r}
+#| label: data
+
+# Load in the dataset and already remove irrelevant stuff:
+pokemon <- read_csv('../../data/Japanese_Pokemon.csv') |> 
+  select(-`Sum of values`, -Checksum)
+
+# check data set:
+pokemon
+
+```
+
+What you see here are the following variables:
+
+Variables:
+
+`Designation`: source of Pokemon name. Official = the official names of Japanese Pokemon; Elicited = elicited names from naive participants.
+
+`pokemonname`: Pokemon name in Japanese
+
+`Output`: Pokemon name in transcribed form
+
+`Length`: Amount of phones in name
+
+`Evolution`: Evolution stage of Pokemons: 1 = pre-evolution; 2 = post-evolution, NA = do not evolve
+
+`f` = amount of /f/ sounds in name
+
+`T` = amount of /T/ sounds in name
+
+...
+
+and many more different sounds.
+
+Now imagine researchers want to use this data set to *test* the following hypothesis:
+
+*The evolution stage of a Pokemon is reflected in aspects of its Japanese name*
+
+# Exercise
+
+## A: Preregister your analysis
+
+Take the hypothesis and what you know about the data set and its structure to predict a very specific relationship that you can test. You are allowed to look at the dataset, but do not look at concrete relationships that might be a manifestation of the hypothesis.
+
+Relationship predicted (specific hypothesis): **The evolution stage of a pokemon has a significant effect on the length of its Japanese name.**
+
+## B: Run your preregistered analysis
+
+Run the preregistered analysis made in (A) above and interpret your results relative to the hypothesis.
+
+```{r}
+#| label: model1
+
+# `Evolution` was coded numerically, converting to a factor
+pokemon$Evolution <- as.factor(pokemon$Evolution)
+
+# Guess you want us to run this frequentist based on which packages are loaded.
+xmdl_length <- lm(Length ~ Evolution,
+                    data = pokemon)
+
+summary(xmdl_length)
+```
+
+The model predicts an average length of 6.98 phones for the name of an Evolution 1 pokemon. It predicts a decrease of 1.28 phones when moving to an Evolution 2 pokemon, for a total of 5.70 phones. This effect has a p-value of \<2.2e-16 (t =13.19), which indicates a very strong correlation between Evolution stage and name length.
+
+## C: Show contradicting results
+
+Now explore the data and find two alternative way to test the research hypothesis that yield convincing results that go in opposite directions based of your findings in (A). Justify all your choices verbally after the fact.
+
+```{r}
+#| label: exploring
+
+pokemon |>
+  group_by(Evolution) |>
+  summarise(a = mean(a),
+            e = mean(e),
+            i = mean(i),
+            o = mean(o),
+            u = mean(u))
+
+# This doesn't suggest we'll find a correlation between `i` sounds and evolution, which does go in the opposite direction from the finding in (A).
+```
+
+Alternative hypothesis 1: evolution stage has an effect on number of 'i' sounds (based on the kiki-bouba effect).
+
+```{r}
+#| label: alt_model1
+
+i_model <- lm(i ~ Evolution,
+              data = pokemon)
+
+summary(i_model)
+```
+
+The model predicts a mean number of 'i's of 0.67 for evolution 1, and changing to evolution to leads to \<-0.01 fewer 'i's. The p-value for the predicted effect is 0.981 (t = -0.024). This suggests that evolution stage is not reflected in aspects of the pokemon's Japanese name.
+
+Next, we looked at high vowels in general (i, e, and u), to investigate more specifically. I consider this my main alternative hypothesis 1.
+
+```{r}
+#| label: alt_model2
+
+# Compute proportion of vowels which are high, based on vibes
+pokemon <- pokemon |>
+  mutate(highvowels = i + e + u,
+         vowels = highvowels + a + o) |>
+  mutate(proportionhighvowels = round(highvowels/vowels, 2))
+
+kiki_model <- lm(proportionhighvowels ~ Evolution,
+              data = pokemon)
+
+summary(kiki_model)
+```
+
+This model predicts that the mean proportion high vowels in an Evolution 1 pokemon's name is 0.51. This decreases by 0.01 to 0.5 for an Evolution 2 pokemon. This effect has a p-value of 0.2734 (t = -1.096), indicating a 27% likelihood of finding the same or more extreme data if the effect of evolution of high vowel proportion is null. This suggests that evolution stage is not reflected in aspects of the pokemon's Japanese name.
+
+Alternative hypothesis 2: instead of high vowels, we look at proportion of long vowels (transcribed as 'R'), out of the name length as a response variable
+
+```{r}
+#| label: alt_model3
+
+pokemon <- pokemon |>
+  filter(Length != 1) |>
+  mutate(proplongvowels = R / (Length - R)) # Each R goes along with a vowel
+
+long_vowel_model <- lm(proplongvowels ~ Evolution,
+                       data = pokemon)
+
+summary(long_vowel_model)
+```
+
+This model predicts a mean proportion long vowels of 0.06 for evolution 1 pokemon, decreasing by 0.01 for evolution 2. This effect has a p-value of 0.2151 (t = 1.24), indicating the effect is not considered significant. This suggests that evolution stage is not reflected in aspects of the pokemon's Japanese name.
+
+## D: Researcher degrees of freedom
+
+Note down all dimensions of researcher degrees of freedom that make the mapping of the hypothesis onto your data analysis vague. How many possible combinations can you think of?
+
+# References
+
+<!-- References will auto-populate in the refs div below -->
+
+::: {#refs}
+:::
