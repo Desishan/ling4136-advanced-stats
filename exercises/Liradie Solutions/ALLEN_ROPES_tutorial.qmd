@@ -1,0 +1,58 @@
+---
+title: "ROPES Tutorial Roettger & Franke 2025"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: 2
+
+library(tidyverse)
+library(brms)
+library(bayestestR)
+```
+
+# 3 Data, research questions & hypotheses
+
+```{r 3.1}
+polite <- read_csv("https://tinyurl.com/yu5zskbp", col_types = "ffffd")
+
+head(polite)
+```
+## 3.2 A Bayesian regression model to address our research question
+```{r 3.2}
+contrasts(polite$context) <- c(-0.5, 0.5)
+contrasts(polite$gender) <- c(-0.5, 0.5)
+
+formula <- bf(pitch ~ context +
+                gender +
+                (1 + context | subject) +
+                (1 + context | sentence))
+
+as_tibble(get_prior(formula, polite)) |>
+  select(class, prior) |>
+  filter(prior != "")
+
+priors <- c(prior(normal(0, 20), coef = "context1"),
+            prior(normal(0, 100), coef = "gender1"))
+
+fit_prior <- brm(formula, prior = priors, data = polite,
+                 sample_prior = "only",
+                 # common sampling specifications
+                 seed = 1234, iter = 8000)
+
+fit <- brm(formula, prior = priors, data = polite,
+           seed = 1234, iter = 8000)
+```
+## 3.3 Grounding hypotheses in regions of practical equivalence
+
+```{r 3.3}
+rope <- c(-10, 10)
+
+```
+
+
+
+
+
+
