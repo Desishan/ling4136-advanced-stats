@@ -10,6 +10,7 @@ editor: visual
 library(tidyverse)
 library(brms)
 library(bayestestR)
+library(tidybayes)
 ```
 
 # 3 Data, research questions & hypotheses
@@ -19,7 +20,9 @@ polite <- read_csv("https://tinyurl.com/yu5zskbp", col_types = "ffffd")
 
 head(polite)
 ```
+
 ## 3.2 A Bayesian regression model to address our research question
+
 ```{r 3.2}
 contrasts(polite$context) <- c(-0.5, 0.5)
 contrasts(polite$gender) <- c(-0.5, 0.5)
@@ -38,21 +41,47 @@ priors <- c(prior(normal(0, 20), coef = "context1"),
 
 fit_prior <- brm(formula, prior = priors, data = polite,
                  sample_prior = "only",
+                 file = '../models/ropes_tute_prior'
                  # common sampling specifications
                  seed = 1234, iter = 8000)
 
 fit <- brm(formula, prior = priors, data = polite,
            seed = 1234, iter = 8000)
 ```
+
 ## 3.3 Grounding hypotheses in regions of practical equivalence
 
 ```{r 3.3}
 rope <- c(-10, 10)
-
 ```
 
+## 4.5 manually calculating the bayes factor for our ROPE hypothesis
 
+```{r 4.5}
+prior_ROPE <- fit_prior |>
+  spread_draws(b_context1) |>
+  summarise(prior_ROPE = mean(b_context1 >= rope[1] & b_context1 <= rope[2])) |>
+  pull()
 
+post_ROPE <- fit |>
+  spread_draws(b_context1) |>
+  summarise(post_ROPE = mean(b_context1 >= rope[1] & b_context1 <= rope[2])) |>
+  pull()
 
+BF_favoring_Null <- (post_ROPE / (1 - post_ROPE)) /
+  (prior_ROPE / (1 - prior_ROPE))
+BF_favoring_Null
 
+BF_favoring_Alt <- 1 / BF_favoring_Null
+BF_favoring_Alt
+```
 
+## 4.6 calculating ROPE-ed bayes factor with the `bayestestr` package
+
+```{r 4.6}
+BF_1 <- bayesfactor_rope(posterior = fit,
+                         prior = fit_prior,
+                         null = rope,
+                         parameter = "b_context1")
+BF_1
+```
