@@ -179,10 +179,10 @@ How robust is your conclusion against different prior choices?
 ```{r}
 
 # YOUR ANSWER HERE
-# Narrower prior difference
-my_priors_5 <- c(prior(normal(150,50), class = 'Intercept'),
+# Narrower distribution for prior difference between conditions
+my_priors_10 <- c(prior(normal(150,50), class = 'Intercept'),
                # weakly informative prior for the voicing difference (very diffuse)
-               prior(normal(0, 5), class = 'b', coef = 'voicingvoiceless'),
+               prior(normal(0, 10), class = 'b', coef = 'voicingvoiceless'),
                # weakly informative prior for all sources of variance (very diffuse)
                prior(cauchy(0,100), class = 'sd'),
                # weakly informative prior for residual variance (very diffuse)
@@ -190,13 +190,45 @@ my_priors_5 <- c(prior(normal(150,50), class = 'Intercept'),
                # correlations
                prior(lkj(1), class = 'cor'))
 
-xmdl_5 <- brm(mdl_formula,
+# Medium diffuse prior differences
+my_priors_20 <- c(prior(normal(150,50), class = 'Intercept'),
+               # weakly informative prior for the voicing difference (very diffuse)
+               prior(normal(0, 20), class = 'b', coef = 'voicingvoiceless'),
+               # weakly informative prior for all sources of variance (very diffuse)
+               prior(cauchy(0,100), class = 'sd'),
+               # weakly informative prior for residual variance (very diffuse)
+               prior(cauchy(0,100), class = 'sigma'),
+               # correlations
+               prior(lkj(1), class = 'cor'))
+
+# Run models
+xmdl_10 <- brm(mdl_formula,
             family = gaussian(),
-            prior = my_priors_5,
-            file = "../../models/in_sesoi_5",
+            prior = my_priors_10,
+            file = "../../models/in_sesoi_10",
             data = incNeutr,
             seed = 42)
+
+xmdl_20 <- brm(mdl_formula,
+            family = gaussian(),
+            prior = my_priors_20,
+            file = "../../models/in_sesoi_20",
+            data = incNeutr,
+            seed = 42)
+
+# Find Bayes factors for rope of 5
+bayesfactor_rope(posterior = xmdl_10,
+                 parameter = 'b_voicingvoiceless',
+                 null = rope_narrow,
+                 seed = 42) # 6.79
+
+bayesfactor_rope(posterior = xmdl_20,
+                 parameter = 'b_voicingvoiceless',
+                 null = rope_narrow,
+                 seed = 42) # 3.12
 ```
+
+If we consider ±5ms a meaningful difference in vowel length, i.e. a ROPE of (-5, 5), specifying somewhat less diffuse priors returns Bayes factors within the realm of moderate evidence in favor of the alternative hypothesis. This makes the conclusion that this data supports, but does not prove, incomplete neutralisation seem reasonably robust.
 
 # References
 
