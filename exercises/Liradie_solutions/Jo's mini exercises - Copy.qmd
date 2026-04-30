@@ -1,0 +1,171 @@
+---
+title: "Mini exercises"
+format: html
+editor: visual
+---
+
+# Jo's Mini-exercises
+
+## Core understanding
+
+#### Exercise 1: What changes when a model becomes Bayesian?
+
+- In your own words, explain what people usually mean when they say they “turn a frequentist model into a Bayesian model.”
+
+They are starting with a simpler linear model, which may be generalised and/or heirarchical, and using the same formula to run a model through a Bayesian engine. The Bayesian model requires additional information in the form of a prior distribution for each value in the formula, and for each output, instead of returning a single value it runs many iterations of the modelling procedure, returning a distribution of possible outputs. These distributions can be compared with a null hypothesis, which may be point zero (like a frequentist model) but may also be a different point or a whole interval, called a ROPE. This comparison can be done with the Savage-Dickey density ratio, which determines how much the data favors the likelihood of the postierior distribution being outside the null hypothesis, compared to the prior. This calculation returns a Bayes Factor, which can be interpreted in terms of levels of uncertainty, making the result more informative than a frequentist model, which only returns a comparison to point null.
+
+- Identify the roles of the likelihood, the prior, and the posterior.
+
+I'm not sure what 'likelihood' means here.
+
+The prior for a given parameter is a distribution of plausible values we think the parameter could have, given the information we have before seeing the data.
+
+The posterior for the same parameter is a distribution of plausible values the model predicts for it, having seen both the priors and the data.
+
+#### Exercise 2: Match the prior to the parameter class
+
+- For each parameter class below, state what kind of quantity it represents and name one prior family that is commonly used for it in brms:
+
+  a)  class = "Intercept": the overall intercept of the response variable; normal distribution
+  b)  class = "b": a predictor variable's effect on the response variable; student_t or normal distribution
+  c)  class = "sd": the variance associated with a random effect; cauchy
+  d)  class = "sigma": the overall residual error, or leftover variation; student_t
+
+- Then explain why the same prior would not automatically make equal sense across all four classes.
+
+  As for normal vs. student_t, I'm not sure when each is appropriate. Student_t captures more density in its tails, so is particularly suited to setting more diffuse priors. Cauchy priors I do not understand.
+
+#### Exercise 3: Priors
+
+- What is a Cauchy prior?
+
+- How is it related to the Student-t family?
+
+- Why do people describe it as “heavy-tailed”?
+
+- Give one situation in which a Cauchy prior may be attractive and one situation in which it may be a poor default choice.
+
+#### Exercise 4: Half-Cauchy and standard deviations
+
+- Explain why a prior such as cauchy(0, 3) on a standard deviation parameter behaves like a halfCauchy in practice.
+
+- Why are priors on class = "sd" especially important in multilevel models?
+
+  Well, I thought those were only used for random effects.
+
+- What can happen if the prior on a random-effect SD is too narrow?
+
+  It could fail to capture the actual value of the random effect. Would this make the random effect term useless?
+
+#### Exercise 5: SESOI
+
+- In your own words, define SESOI.
+
+  SESOI stands for smallest effect size of interest, and is the amount of change to the response variable the researcher decides a predictor must affect for it to be a 'meaningful' effect.
+
+- Explain the difference between statistical significance and practical importance.
+
+  Statistical significance is typically calculated in comparison to zero, i.e. if it's sufficiently unlikely that an effect is zero it is considered statistically significant. Practical importance depends on whether the effect is of a size that actually 'matters' in the world.
+
+- Explain the difference between a point null of exactly 0 and an interval null around 0.
+
+  An interval null around zero describes an area where an effect in either direction would be small enough no be considered equivalent to zero.
+
+- A posterior for a treatment effect is centered at 0.03, and your SESOI is \[-0.10, 0.10\]. What is the first practical question you should ask?
+
+  What is the spread of the posterior? Is any of it outside the ROPE? If so, what proportion compared to the prior?
+
+- A researcher says, “Any effect above zero matters.” What is wrong with that claim?
+
+  If the predicted effect is too small to be measurable with the research equipment used, it's meaningless; if it's too small to have practical implications in the world, it's close to meaningless.
+
+- Why is SESOI always tied to a scale, a context, and a decision problem?
+
+  I don't know this formulation, but broadly all of these things decide what an effect may mean in the world; some contexts/decisions are predicated on stronger effects than others.
+
+## Interpretation and diagnosis
+
+#### Exercise 6: Scale matters
+
+- Suppose you are modeling reaction times in milliseconds. Compare the practical meaning of the following two priors on class = "sd":
+
+  a)  cauchy(0, 3)
+
+      The prior is quite precise, predicting an effect with very little variation.
+
+  b)  cauchy(0, 100)
+
+      The prior is quite broad, predicting an effect which could vary a lot.
+
+- Discuss what each prior says before seeing the data, and why one might be too narrow or too diffuse depending on the scale of the outcome.
+
+  The narrow prior may make the outcome seem very powerful if an outcome is measured with a mean of, say, 10ms, as a large mass of data would be away from the prior.
+
+  The diffuse prior may make the outcome seem not very powerful/meaningful even if it's mean is something like 50ms, because that's fully within the prior.
+
+#### Exercise 7: Weakly or informative priors
+
+- What is a weakly informative prior?
+
+  A weakly informative prior diffusely covers an area of values that are conceivable based on the information available. In the case of effects, it's generally centred on zero.
+
+- Why is “as flat as possible” often not the best strategy?
+
+  Flat priors reproduce the uninformed prediction in frequentist models, overly favoring values that are absolutely inconceivable. This makes real data values seem more meaningful in comparison.
+
+- Give one example of how a weakly informative prior can help with estimation, interpretation, or computation.
+
+  A weakly informative prior can be used to compute a Bayes factor, as a baseline of conceivable values to compare posteriors to.
+
+#### Exercise 8: Matching priors to parameters
+
+- Which parameter classes in a multilevel model usually need different priors: intercepts, slopes, residual SDs, random-effect SDs, or correlations? Explain briefly why they cannot all share the same prior.
+
+  The intercept, unlike the rest of them, is typically not centred around zero since it's not a measurement of change or variation. As for the rest, I'm not sure.
+
+- Why is a prior for a standard deviation usually chosen from a positive-only family or interpreted as truncated/half-distributed?
+
+- Why should an intercept prior usually be chosen on the outcome scale rather than copied from a prior used for standardized slopes?
+
+#### Exercise 9: Reading results against a SESOI
+
+- Suppose an effect estimate is 0.18 with a 95% credible interval of \[0.02, 0.31\], and the SESOI is \[- 0.10, 0.10\]. Write 3-4 sentences interpreting this result from a practical-importance perspective.
+
+- Now suppose an effect estimate is 0.05 with a 95% credible interval of \[-0.02, 0.12\], with the same SESOI. What is uncertain here? Be precise.
+
+- Now suppose an effect estimate is 0.01 with a 95% credible interval of \[-0.03, 0.04\], again with the same SESOI. What would be the most defensible conclusion?
+
+## Applied work in R
+
+#### Exercise 10: Writing priors in brms
+
+- Write a brms prior specification for a Gaussian mixed model with these choices:
+  - a normal prior for the intercept centered on 750 with scale 200
+  - a normal prior for fixed effects centered on 0 with scale 50
+  - a Student-t prior for random-effect standard deviations with df = 3, location = 0, scale = 50
+  - a Student-t prior for sigma with df = 3, location = 0, scale = 50
+  - Write the R code using prior(...) or set_prior(...).
+
+#### Exercise 11: Inspecting defaults by overriding them
+
+- What function would you use in brms to inspect priors before fitting a model?
+
+- Why is this a good habit?
+
+- Write a short code example using a formula of your choice.
+
+#### Exercise 12: Sensitivity analysis
+
+- Imagine you fit the same model twice. In Model A you use a narrow prior on class = "sd"; in Model B you use a much wider prior. The posterior intervals for the main effects are noticeably wider in Model B.
+
+- Give two possible interpretations of this result.
+
+- Then explain what you would report in a write-up to show that you took prior sensitivity seriously.
+
+## BONUS
+
+1\. A student writes: “We used a very wide prior because wide priors are always more objective.” Critique this statement.
+
+2.  Another student writes: “Our estimate was statistically different from zero, so it must be practically meaningful.” Critique this statement.
+
+3.  A third student writes: “We did not have time to read the literature, so we chose a SESOI randomly.” Rewrite this into a more defensible sentence.
