@@ -125,15 +125,25 @@ The posterior for the same parameter is a distribution of plausible values the m
 
 - Why is a prior for a standard deviation usually chosen from a positive-only family or interpreted as truncated/half-distributed?
 
+  Standard deviations cannot be negative, as they are a measure of absolute spread. Is this what cauchy does?
+
 - Why should an intercept prior usually be chosen on the outcome scale rather than copied from a prior used for standardized slopes?
+
+  See above; it's a value the data is centred around, which is typically not zero.
 
 #### Exercise 9: Reading results against a SESOI
 
 - Suppose an effect estimate is 0.18 with a 95% credible interval of \[0.02, 0.31\], and the SESOI is \[- 0.10, 0.10\]. Write 3-4 sentences interpreting this result from a practical-importance perspective.
 
+  While this effect is very likely positive, a little less than 1/3 of effect's posterior is inside the ROPE, so there's a reasonable likelihood that it is not practically meaningful based on the rationale of the SESOI choice. It is more likely than not that it is practically meaningful, but not proven.
+
 - Now suppose an effect estimate is 0.05 with a 95% credible interval of \[-0.02, 0.12\], with the same SESOI. What is uncertain here? Be precise.
 
+  It is uncertain whether there is an effect at all, as the 95% CI overlaps with zero, and whether the effect is practically meaningful. There is a plausible, but relatively unlikely case (a little under 1/5 of the posterior) that there is a positive, practically meaningful effect.
+
 - Now suppose an effect estimate is 0.01 with a 95% credible interval of \[-0.03, 0.04\], again with the same SESOI. What would be the most defensible conclusion?
+
+  The most defensible conclusion is that there is no practically important effect.
 
 ## Applied work in R
 
@@ -141,18 +151,48 @@ The posterior for the same parameter is a distribution of plausible values the m
 
 - Write a brms prior specification for a Gaussian mixed model with these choices:
   - a normal prior for the intercept centered on 750 with scale 200
+
   - a normal prior for fixed effects centered on 0 with scale 50
+
   - a Student-t prior for random-effect standard deviations with df = 3, location = 0, scale = 50
+
   - a Student-t prior for sigma with df = 3, location = 0, scale = 50
+
   - Write the R code using prior(...) or set_prior(...).
+
+```{r priors}
+library(brms)
+
+my_priors <- c(prior(normal(750, 200), class = 'Intercept'),
+               prior(normal(0, 50), class = 'b'),
+               prior(student_t(3, 0, 50), class = 'sd'),
+               prior(student_t(3, 0, 50), class = 'sigma'))
+```
 
 #### Exercise 11: Inspecting defaults by overriding them
 
 - What function would you use in brms to inspect priors before fitting a model?
 
+  `get_prior(model formula, data)`
+
 - Why is this a good habit?
 
+  In case you forgot about a prior that needs to be set? In case the defaults are unexpected and this tells you something?
+
 - Write a short code example using a formula of your choice.
+
+```{r defaults}
+model_formula <- correct ~ treatment + # there are 2 treatments, so no
+  #random slopes
+                           test_block + # there are 2 test blocks, so no
+  #random slopes
+                           (1 | participant) + 
+                           (1 | item)
+
+#get_prior(model_formula, data)
+
+## aa, don't have time to find actual data for this, oh well
+```
 
 #### Exercise 12: Sensitivity analysis
 
@@ -160,12 +200,23 @@ The posterior for the same parameter is a distribution of plausible values the m
 
 - Give two possible interpretations of this result.
 
+  1.  Model B captures more of the actual variation among participants and items, and reflects that this means the main effects cannot be predicted so consistently.
+  2.  Model B predicts more variation among participants and items than there actually is, artificially making the prediction less precise.
+
 - Then explain what you would report in a write-up to show that you took prior sensitivity seriously.
+
+  The spread of the predicted effect distribution is noticeably affected by the researcher's choices of priors. Outcomes should be interpreted with reference to the priors used in the input.
 
 ## BONUS
 
 1\. A student writes: “We used a very wide prior because wide priors are always more objective.” Critique this statement.
 
+Overly wide priors favor more extreme values and make it more difficult for the model to converge on realistic values, as it must rely mostly only on the data.
+
 2.  Another student writes: “Our estimate was statistically different from zero, so it must be practically meaningful.” Critique this statement.
 
+    Covered this earlier.
+
 3.  A third student writes: “We did not have time to read the literature, so we chose a SESOI randomly.” Rewrite this into a more defensible sentence.
+
+We chose a SESOI with limited information due to resource constraints. The SESOI should thus be considered a guideline, rather than a strict decision point.
