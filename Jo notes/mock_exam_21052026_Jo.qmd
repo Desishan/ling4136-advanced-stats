@@ -1,0 +1,305 @@
+---
+title: "Mock Exam: Word Learning in Noisy Classrooms"
+format: html
+editor: visual
+date: 2026-05-21
+author: "LING2136 mock preparation"
+execute:
+  error: false
+  warning: false
+  message: false
+  cache: false
+bibliography: mock_bibliography_v2.bib
+---
+
+# 1. Background
+
+(I hope it goes without saying, but - ) This mock exam is **not** the real exam and does not reproduce the real exam scenario.
+
+**The story**
+
+A research group is evaluating whether controlled classroom white noise affects adult second-language learners' recognition of newly learned words. The setup is inspired by published work on white noise, novel-word learning, and stochastic resonance (Angwin et al. 2019, <https://doi.org/10.1016/j.bandl.2019.104699>); (Rufener et al. 2020, <https://doi.org/10.1038/s41598-020-63332-w>). (Our dataset is fully synthetic and should not be interpreted as a replication of either study).
+
+The research team is interested in **whether learners respond more slowly or more quickly under different levels of classroom white noise**, and **whether sentence-level contextual predictability helps learners recognize novel words more efficiently**.
+
+# 2. Study design
+
+Adult L2 learners completed a word-recognition task. On each trial, a sentence context was presented before a newly learned target word. The learner then made a recognition response, and the system recorded the response time in milliseconds.
+
+The classroom acoustic environment was controlled using a white-noise playback system. The actual sound level during each trial was recorded by a classroom acoustic monitor.
+
+## 2.1 Measurement device
+
+Noise level was measured with a classroom acoustic monitoring unit positioned near the learner. The device reports A-weighted sound pressure level in dB SPL.
+
+The manufacturer reports that under stable classroom conditions the device has an expected measurement error of approximately +/- 1.5 dB. However, transient peaks, calibration slips, or file-writing errors can occasionally produce invalid readings.
+
+Response time was recorded by the learning platform in milliseconds. The platform logs reaction times with millisecond precision, but the experimenters warn that device glitches may create impossible or placeholder values.
+
+# 3. Variables
+
+The dataset is `mock_word_learning_v2.csv`.
+
+- `participant_id`: unique learner identifier.
+- `item_id`: unique novel-word item.
+- `trial`: trial number within participant.
+- `item_category`: broad item type, included as metadata.
+- `noise_db`: measured white-noise level in dB SPL.
+- `predictability`: contextual predictability score from 0 to 1. Higher values mean the sentence context gave stronger support for the target word.
+- `rt_ms`: response time in milliseconds.
+
+# 4. Your task
+
+Use a Bayesian framework to **estimate how noise level and contextual predictability influence word-recognition response time.**
+
+Your analysis should:
+
+- inspect and clean the data where necessary,
+- visualize the raw and prepared data,
+- construct and justify an appropriate Bayesian model,
+- identify relevant group dependencies and include an appropriate random-effects structure,
+- specify and justify priors for all major parameter classes,
+- fit the model and assess computational diagnostics,
+- critically evaluate the likelihood using posterior predictive checks,
+- interpret the posterior distributions,
+- evaluate practical importance using SESOI / ROPE reasoning where appropriate,
+- end with a short plain-language recommendation for a learning-platform design team.
+
+The recommendation should not be a list of coefficients. It should translate your findings into cautious, evidence-based advice about classroom noise and contextual support in vocabulary-learning software.
+
+# 5. Set up
+
+```{r}
+#| label: packages
+# Add other packages here if needed
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, brms, tidybayes, bayestestR, ggdist, bayesplot, posterior)
+
+options(mc.cores = parallel::detectCores())
+```
+
+```{r}
+#| label: read-data
+word_learning <- read_csv("mock_word_learning_v2.csv")
+```
+
+# 6. Your analysis
+
+Remember to create your own clear structure.
+
+Good luck!
+
+## Inspect and clean the data
+
+```{r}
+glimpse(word_learning) # so useful wow!
+names(word_learning)
+summary(word_learning)
+
+# Counting NA's
+word_learning |>
+  summarise(across(everything(), ~ sum(is.na(.))))
+
+# Counting distinct participants and items
+word_learning |>
+  summarise(
+    n_participants = n_distinct(participant_id),
+    n_items = n_distinct(item_id),
+    n_rows = n()
+  )
+
+# Counting trials per item category
+word_learning |>
+  count(item_category)
+
+summary(word_learning$rt_ms)
+summary(word_learning$noise_db)
+summary(word_learning$predictability)
+
+# CLEANING
+word_learning_tidy <- word_learning |>
+  mutate(
+    rt_ms_clean = case_when(
+        is.na(rt_ms) ~ NA_real_,
+        rt_ms <= 0 ~ NA_real_,
+        rt_ms > 5000 ~ NA_real_,
+        TRUE ~ rt_ms
+    ),
+    noise_db_clean = case_when(
+        is.na(noise_db) ~ NA_real_,
+        noise_db <= 20 ~ NA_real_,
+        noise_db > 100 ~ NA_real_,
+        TRUE ~ noise_db
+      )
+    ) |>
+  mutate(
+    participant_id = factor(participant_id),
+    item_id = factor(item_id),
+    item_category = factor(item_category),
+    noise_10db_c = (noise_db_clean - mean(noise_db_clean, na.rm = TRUE)) / 10,
+    predictability_c = predictability - mean(predictability, na.rm = TRUE),
+    log_rt = log(rt_ms_clean)
+  ) |>
+    drop_na (rt_ms_clean,
+             noise_db_clean,
+             predictability,
+             noise_10db_c,
+             predictability_c,
+             log_rt)
+
+```
+
+## Visualise the raw and prepared data
+
+```{r}
+ggplot(word_learning, aes(x = rt_ms)) +
+  geom_histogram(bins = 40) +
+  theme_minimal() +
+  labs(title = 'Raw RT before cleaning', x = 'RT (ms)')
+
+ggplot(word_learning_tidy, aes(x = rt_ms_clean)) +
+  geom_histogram(bins = 40) +
+  theme_minimal() +
+  labs(title = 'RT cleaned', x = 'RT (ms)')
+
+ggplot(word_learning_tidy, aes(x = log_rt)) + 
+    geom_histogram(bins = 40) +
+    theme_minimal() +
+    labs(title = 'Log transformed RT',  x = 'log(RT)')
+  
+ggplot(word_learning_tidy, aes(x = noise_10db_c, y = log_rt)) +
+  geom_point(alpha = .25) +
+  geom_smooth(moethod = 'lm', se = FALSE) +
+  theme_minimal() +
+  labs(x = 'Noise level, centred & scaled per 10 db', y = 'log(RT)')
+
+ggplot(word_learning_tidy, aes(x = predictability_c, y = log_rt)) +
+  geom_point(alpha = .25) +
+  geom_smooth(method = 'lm', se = FALSE) +
+  theme_minimal() +
+  labs(x = 'Contextual predictability, centred', y = 'log(RT')
+```
+
+## Fit model
+
+```{r}
+# model formula
+baby_formula <- bf(
+  log_rt ~ predictability_c * noise_10db_c +
+    (1 + predictability_c * noise_10db_c | participant_id) +
+    (1 | item_id)
+)
+
+# set priors
+get_prior(baby_formula,
+          data = word_learning_tidy,
+          family = gaussian())
+
+my_priors <- c(
+  prior(normal(6.6, 0.5), class = 'Intercept'),
+  prior(normal(0, 0.25), class = 'b'),
+  prior(student_t(3, 0, 0.3), class = 'sd'),
+  prior(student_t(3, 0, 0.3), class = 'sigma')
+)
+
+exp(6.6)
+# Raw rt value of 6.6 log rt is 735 ms
+
+# FIT THE MODEL
+super_fit_model <- brm(formula = baby_formula,
+                       data = word_learning_tidy,
+                       family = gaussian(),
+                       prior = my_priors,
+                       file = 'mock_exam_mdl.RDS',
+                       # Backstage setup
+                       chains = 4,
+                       iter = 4000,
+                       warmup = 2000,
+                       seed = 2136
+                       )
+```
+
+## Assess computational diagnostics
+
+### Assess chain convergence
+
+```{r}
+#Use the mcmc_plot() function to assess if the sampling chains have converged.
+mcmc_plot(super_fit_model, type = 'trace')
+
+# Double check that different chains yields similar posteriors.
+mcmc_dens_overlay(super_fit_model)
+
+```
+
+\`mcmc_plot()\` does not show any notable divergences, i.e. chains look like caterpillars.
+
+MCMC density overlay plot is impossible to read. TODO ask Jo what to do here.
+
+### Check convergence diagnostics
+
+```{r}
+summary(super_fit_model)
+```
+
+All rhat values = 1.00;
+
+Bulk ESS \> 400. This model should be 'safe' for mean/variance estimates.
+
+Tail ESS \> 100. This model should be 'safe' for credible intervals.
+
+## Critically evaluate the likelihood using posterior predictive checks
+
+```{r pp_check}
+pp_check(super_fit_model, ndraws = 50)
+```
+
+The match between the data and the model predictions is not perfect. The real data has a peak slightly further to the left, along with denser tails than the model. But they line up well enough that the model could certainly have predicted the real data.
+
+## Interpret the posterior distributions
+
+```{r posterior_dist}
+fixef(super_fit_model) # TODO: find out how to integrate this.
+posterior_summary(super_fit_model) # oh my, that's a lot of estimates.
+
+super_fit_model
+
+# Transforming the intercept estimate to raw rt
+c(exp(6.54))
+```
+
+The grand average of reaction times is 6.54 (intercept) \[95% CrI 6.46 - 6.61\], corresponding to 692ms.
+
+For a 1 unit increase in predictability, reaction time decreases by -0.07 log units \[95% CrI -0.15 - 0.01\].
+
+For a 10db increase in white noise, reaction time increases by 0.04 log units \[95% CrI -0.09 - 0.02\].
+
+The interaction term, the difference of differences, is -0.03 log units \[95% CrI -0.09 - 0.02\].
+
+```{r post_plot}
+super_fit_model |>
+  gather_draws(b_predictability_c,
+               b_noise_10db_c,
+               `b_predictability_c:noise_10db_c`) |>
+  # plot
+  ggplot(aes(x = .value,
+             y = .variable)) +
+  stat_halfeye() +
+  geom_vline(xintercept = 0,
+             lty = 'dashed') +
+  labs(x = 'posterior estimate for log-transformed reaction time',
+       y = '') +
+  theme_minimal()
+```
+
+For predictability, most posterior samples are negative but they overlap with zero, i.e. positive values remain somewhat plausible values. Given the model, the data and the priors, it seems plausible that participants react to more contextually predictable new words than less predictable ones.
+
+For noise, all posterior samples are positive. Given the model, the data and the priors, it seems very likely that participants react to more new words slower when white noise is higher.
+
+For the interaction term, negative posterior samples are more plausible than positive ones but the posterior distribution overlaps notably with zero. Given the model, the data and the priors, there may be no interaction between the two variables; if there is one, it is most likely negative, meaning that the combination of noise and more predictabile words may increase reaction time more than predictable words on its own.
+
+## Evaluate practical importance using SESOI / ROPE reasoning where appropriate
+
+## End with a short plain-language recommendation for a learning-platform design team
+
+# References
